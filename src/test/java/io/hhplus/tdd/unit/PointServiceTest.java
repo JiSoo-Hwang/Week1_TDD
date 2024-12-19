@@ -1,18 +1,19 @@
 package io.hhplus.tdd.unit;
 
+import io.hhplus.tdd.database.PointHistoryTable;
 import io.hhplus.tdd.database.UserPointTable;
 import io.hhplus.tdd.point.LockManager;
 import io.hhplus.tdd.point.PointService;
+import io.hhplus.tdd.point.TransactionType;
 import io.hhplus.tdd.point.UserPoint;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
@@ -21,6 +22,7 @@ public class PointServiceTest {
 
     private PointService pointService;
     private UserPointTable mockTable;
+    private PointHistoryTable mockPointHistoryTable;
     private LockManager mockLockManager;
     private ReentrantReadWriteLock mockLock;
 
@@ -28,9 +30,10 @@ public class PointServiceTest {
     void setUp(){
         //기본 기능(조회, 충전, 사용, 내역조회) 외의 기능은 모두 Mock 의존성 주입
         mockTable = Mockito.mock(UserPointTable.class);
+        mockPointHistoryTable = Mockito.mock(PointHistoryTable.class);
         mockLockManager = Mockito.mock(LockManager.class);
         mockLock = Mockito.mock(ReentrantReadWriteLock.class);
-        pointService = new PointService(mockTable,mockLockManager);
+        pointService = new PointService(mockTable,mockPointHistoryTable, mockLockManager);
 
         ReentrantReadWriteLock.ReadLock readLock = Mockito.mock(ReentrantReadWriteLock.ReadLock.class);
         ReentrantReadWriteLock.WriteLock writeLock = Mockito.mock(ReentrantReadWriteLock.WriteLock.class);
@@ -39,6 +42,7 @@ public class PointServiceTest {
         when(mockLockManager.getLock(anyLong())).thenReturn(mockLock);
     }
 
+    //포인트 조회
     //존재하는 사용자의 포인트 조회
     @Test
     void testGetUserPoint_ExistingUser(){
@@ -78,4 +82,62 @@ public class PointServiceTest {
         verify(mockLock.readLock(), times(1)).lock(); // Read lock이 제대로 작동했는지 확인
         verify(mockLock.readLock(), times(1)).unlock(); // Read lock 해제 확인
     }
+
+    //포인트 적립
+    //허용되는 포인트 충전 검증
+    @Test
+    void testChargePoints_validAmount() {
+        // Given
+        Long id = 1L;
+        long initialAmount = 5000L;
+        long chargeAmount = 10000L;
+
+        UserPoint currentPoint = new UserPoint(id, initialAmount, System.currentTimeMillis());
+        when(mockTable.selectById(id)).thenReturn(currentPoint);
+
+        // When
+        pointService.chargePoints(id, chargeAmount);
+
+        // Then
+        verify(mockTable, times(1)).insertOrUpdate(id, initialAmount + chargeAmount);
+        verify(mockPointHistoryTable, times(1)).insert(eq(id), eq(chargeAmount), eq(TransactionType.CHARGE), anyLong());
+    }
+
+    //허용되지 않는 금액 충전 검증
+    @Test
+    void testChargePoints_invalidAmount() {
+        // Given
+        Long id = 1L;
+        long chargeAmount = 123L; // 허용되지 않는 금액
+
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> pointService.chargePoints(id, chargeAmount));
+
+        assertEquals("허용되지 않는 포인트 금액입니다.", exception.getMessage());
+        //사용자 포인트 데이터에 영향을 주진 않았는지 검증
+        verifyNoInteractions(mockTable);
+        //사용자 포인트 충전 및 사용 내역 데이터에 영향을 주진 않았는지 검증
+        verifyNoInteractions(mockPointHistoryTable);
+    }
+
+    //사용자 보유 가능한 최대 포인트 초과시 검증
+    @Test
+    void testChargePoints_exceedMaxPoints() {
+        // Given
+        Long id = 1L;
+        long initialAmount = 95000L;
+        long chargeAmount = 10000L;
+
+        UserPoint currentPoint = new UserPoint(id, initialAmount, System.currentTimeMillis());
+        when(mockTable.selectById(id)).thenReturn(currentPoint);
+
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> pointService.chargePoints(id, chargeAmount));
+
+        assertEquals("사용자가 보유할 수 있는 최대 포인트를 초과했습니다.", exception.getMessage());
+        verifyNoInteractions(mockPointHistoryTable);
+    }
+
 }
