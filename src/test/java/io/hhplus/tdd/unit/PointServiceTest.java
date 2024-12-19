@@ -2,16 +2,14 @@ package io.hhplus.tdd.unit;
 
 import io.hhplus.tdd.database.PointHistoryTable;
 import io.hhplus.tdd.database.UserPointTable;
-import io.hhplus.tdd.point.LockManager;
-import io.hhplus.tdd.point.PointService;
-import io.hhplus.tdd.point.TransactionType;
-import io.hhplus.tdd.point.UserPoint;
+import io.hhplus.tdd.point.*;
 
 import org.apache.catalina.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -199,5 +197,44 @@ public class PointServiceTest {
         verifyNoInteractions(mockPointHistoryTable);
     }
 
+    //포인트 사용 내역 조회
+    //포인트 사용 내역이 있을 때
+    @Test
+    void testGetUserHistory(){
+        //Given
+        Long id = 1L;
+        PointHistory chargeHistory = new PointHistory(1,id,100,TransactionType.CHARGE,System.currentTimeMillis());
+        PointHistory useHistory = new PointHistory(2,id,200,TransactionType.USE,System.currentTimeMillis());
+        List<PointHistory> mockHistory = List.of(chargeHistory,useHistory);
 
+        when(mockPointHistoryTable.selectAllByUserId(id)).thenReturn(mockHistory);
+
+        //When
+        List<PointHistory> result = pointService.getUserPointHistory(id,0,10);
+
+        //Then
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals(chargeHistory,result.get(0));
+        assertEquals(useHistory,result.get(1));
+
+        verify(mockPointHistoryTable,times(1)).selectAllByUserId(id);
+
+    }
+
+    //포인트 사용 내역이 없을 때
+    @Test
+    void testGetPointHistory_noHistory(){
+        // Given
+        Long id = 2L;
+        when(mockPointHistoryTable.selectAllByUserId(id)).thenReturn(List.of());
+
+        // When
+        List<PointHistory> result = pointService.getUserPointHistory(id,0,10);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(mockPointHistoryTable, times(1)).selectAllByUserId(id);
+    }
 }

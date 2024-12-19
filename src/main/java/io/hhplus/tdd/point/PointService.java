@@ -6,6 +6,7 @@ import org.apache.catalina.User;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -98,6 +99,15 @@ public class PointService {
             lock.writeLock().unlock();
         }
 
+    }
+
+    //포인트 사용 내역 조회
+    public List<PointHistory>getUserPointHistory(Long id, int startIndex, int pageSize){
+        return pointHistoryTable.selectAllByUserId(id).stream()
+                .sorted(Comparator.comparing(PointHistory::updateMillis).reversed()) //최신순 정렬
+                .skip(startIndex) //조회되는 데이터가 많을 때 페이징 처리 : 시작 인덱스 건너뜀
+                .limit(pageSize) // 한 페이지 크기 제한
+                .toList(); //결과를 리스트로 변환
     }
 
 }
