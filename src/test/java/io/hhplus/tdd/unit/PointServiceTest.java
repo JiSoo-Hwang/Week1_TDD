@@ -7,6 +7,7 @@ import io.hhplus.tdd.point.PointService;
 import io.hhplus.tdd.point.TransactionType;
 import io.hhplus.tdd.point.UserPoint;
 
+import org.apache.catalina.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -139,5 +140,64 @@ public class PointServiceTest {
         assertEquals("사용자가 보유할 수 있는 최대 포인트를 초과했습니다.", exception.getMessage());
         verifyNoInteractions(mockPointHistoryTable);
     }
+
+    //포인트 사용
+    //허용되는 포인트 사용 검증
+    @Test
+    void testUsePoints_validAmount(){
+        //Given
+        Long id = 1L;
+        long initialAmount = 5000L;
+        long useAmount = 300L;
+
+        UserPoint currentPoint = new UserPoint(id, initialAmount,System.currentTimeMillis());
+        when(mockTable.selectById(id)).thenReturn(currentPoint);
+
+        //When
+        pointService.usePoints(id,useAmount);
+
+        //Then
+        verify(mockTable,times(1)).insertOrUpdate(id,initialAmount-useAmount);
+        verify(mockPointHistoryTable,times(1)).insert(eq(id),eq(useAmount),eq(TransactionType.USE),anyLong());
+    }
+
+    //허용되지 않는 포인트 사용 검증
+    @Test
+    void testUsePoints_invalidAmount(){
+        //Given
+        Long id = 1L;
+        long initialAmount = 5000L;
+        long useAmount = 600L;
+
+        UserPoint currentPoint = new UserPoint(id, initialAmount,System.currentTimeMillis());
+        when(mockTable.selectById(id)).thenReturn(currentPoint);
+
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> pointService.usePoints(id,useAmount));
+
+        assertEquals("허용되지 않는 포인트 금액입니다.", exception.getMessage());
+        verifyNoInteractions(mockPointHistoryTable);
+    }
+
+    //보유한 포인트보다 더 많이 사용할 수 없음
+    @Test
+    void testUsePoints_exceedOwningPoints(){
+        //Given
+        Long id = 1L;
+        long initialAmount = 100L;
+        long useAmount = 300L;
+
+        UserPoint currentPoint = new UserPoint(id,initialAmount,System.currentTimeMillis());
+        when(mockTable.selectById(id)).thenReturn(currentPoint);
+
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> pointService.usePoints(id,useAmount));
+
+        assertEquals("사용자가 보유한 포인트를 초과해서 사용할 수 없습니다.", exception.getMessage());
+        verifyNoInteractions(mockPointHistoryTable);
+    }
+
 
 }

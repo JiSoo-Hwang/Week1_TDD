@@ -5,6 +5,7 @@ import io.hhplus.tdd.database.UserPointTable;
 import org.apache.catalina.User;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,6 +50,8 @@ public class PointService {
         try{
             //기존 포인트 가져오기
             UserPoint currentPoint = userPointTable.selectById(id);
+            
+            //포인트 충전
             long updatedPoint = currentPoint.point() + amount;
 
             //조건 2 : 최대 보유 가능 포인트 검증
@@ -65,4 +68,36 @@ public class PointService {
             lock.writeLock().unlock();
         }
     }
+
+    //포인트 사용
+    public void usePoints(Long id, long amount){
+        //조건 1. 한 번에 100, 200, 300 포인트만 사용 가능 (네이버 쿠키 방식 차용)
+        List<Long> allowedAmounts = List.of(100L,200L,300L);
+        if(!allowedAmounts.contains(amount)){
+            throw new IllegalArgumentException("허용되지 않는 포인트 금액입니다.");
+        }
+
+        ReentrantReadWriteLock lock = lockManager.getLock(id);
+        lock.writeLock().lock();
+        try{
+            UserPoint currentPoint = userPointTable.selectById(id);
+
+            //조건 2. 보유한 포인트보다 더 많이 사용할 수 없음
+            if(currentPoint.point()<amount){
+                throw new IllegalArgumentException("사용자가 보유한 포인트를 초과해서 사용할 수 없습니다.");
+            }
+            //포인트 사용
+            long updatedPoint = currentPoint.point()-amount;
+
+            //UserPointTable 업데이트
+            userPointTable.insertOrUpdate(id,updatedPoint);
+
+            //PointHistoryTable 업데이트
+            pointHistoryTable.insert(id,amount,TransactionType.USE,System.currentTimeMillis());
+        }finally {
+            lock.writeLock().unlock();
+        }
+
+    }
+
 }
