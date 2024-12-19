@@ -23,6 +23,7 @@ dependencyManagement {
 
 dependencies {
     implementation(libs.spring.boot.starter.web)
+    implementation("org.springframework:spring-tx:6.1.1")
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
     annotationProcessor(libs.spring.boot.configuration.processor)
