@@ -41,8 +41,7 @@ public class PointService {
     public void chargePoints(Long id, long amount){
 
         //조건 1 : 적립 가능한 포인트 금액 검증
-        List<Long> allowedAmounts = List.of(100L,1000L,3000L,5000L,10000L,20000L,30000L);
-        if(!allowedAmounts.contains(amount)){
+        if(!AllowedAmount.getAllowedValues().contains(amount)){
             throw new IllegalArgumentException("허용되지 않는 포인트 금액입니다.");
         }
 
@@ -73,8 +72,7 @@ public class PointService {
     //포인트 사용
     public void usePoints(Long id, long amount){
         //조건 1. 한 번에 100, 200, 300 포인트만 사용 가능 (네이버 쿠키 방식 차용)
-        List<Long> allowedAmounts = List.of(100L,200L,300L);
-        if(!allowedAmounts.contains(amount)){
+        if(!AllowedAmount.getAllowedValues().contains(amount)){
             throw new IllegalArgumentException("허용되지 않는 포인트 금액입니다.");
         }
 
